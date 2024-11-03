@@ -1,4 +1,5 @@
 import Arena
+from AlphaBeta import AlphaBeta
 from MCTS import MCTS
 from othello.OthelloGame import OthelloGame
 from othello.OthelloPlayers import *
@@ -14,7 +15,7 @@ any agent.
 """
 
 mini_othello = False  # Play in 6x6 instead of the normal 8x8.
-human_vs_cpu = True
+human_vs_cpu = False
 
 if mini_othello:
     g = OthelloGame(6)
@@ -38,6 +39,9 @@ args1 = dotdict({'numMCTSSims': 50, 'cpuct':1.0})
 mcts1 = MCTS(g, n1, args1)
 n1p = lambda x: np.argmax(mcts1.getActionProb(x, temp=0))
 
+ap = AlphaBeta(g, n1, dotdict({'ab_depth': 3})).play
+
+
 if human_vs_cpu:
     player2 = hp
 else:
@@ -49,6 +53,6 @@ else:
 
     player2 = n2p  # Player 2 is neural network if it's cpu vs cpu.
 
-arena = Arena.Arena(n1p, player2, g, display=OthelloGame.display)
+arena = Arena.Arena(rp, ap, g, display=OthelloGame.display)
 
-print(arena.playGames(2, verbose=True))
+print(arena.playGames(5, verbose=True))
