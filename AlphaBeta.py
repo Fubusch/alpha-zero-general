@@ -13,6 +13,7 @@ class AlphaBeta():
         self.nnet = nnet
         self.args = args
         self.evals = {}
+        self.game_ended = {}
 
     def play(self, canonicalBoard):
         """
@@ -29,6 +30,9 @@ class AlphaBeta():
         current_best_move = -1
         if len(valid_moves) == 1:
             return valid_moves[0]
+        if self.args.move_ordering:
+            pi, v = self.nnet.predict(canonicalBoard)
+            valid_moves = valid_moves[pi[valid_moves].argsort()][:self.args.kbest]
         for move in valid_moves:
             state_after_move, next_player = self.game.getNextState(canonicalBoard, current_player, move)
             eval = self.search(state_after_move, next_player, self.args.ab_depth - 1)
@@ -42,22 +46,27 @@ class AlphaBeta():
     def get_valid_moves(self, canonicalBoard, player):
         return np.argwhere(self.game.getValidMoves(canonicalBoard, player) == 1).flatten()
 
-    def search(self, ccurrent_board, currentPlayer, depth=0, alpha=-1, beta=1):
-        game_ended = self.game.getGameEnded(ccurrent_board, 1)
-        if game_ended != 0:
-            return game_ended
-        if depth == 0:
-            _, v = self.nnet.predict(ccurrent_board)
-            return v
+    def search(self, ccurrent_board, currentPlayer, depth=0, alpha=-1, beta=1, pi=None):
+        s = self.game.stringRepresentation(ccurrent_board)
+        if s not in self.game_ended:
+            self.game_ended[s] = self.game.getGameEnded(ccurrent_board, 1)
+        if s in self.evals:
+            return self.evals[s]
+        if self.game_ended[s] != 0:
+            return self.game_ended[s]
+        if depth <= 0:
+            _, self.evals[s] = self.nnet.predict(ccurrent_board)
+            return self.evals[s]
         moves = self.get_valid_moves(ccurrent_board, currentPlayer)
         if self.args.move_ordering:
-            pi, v = self.nnet.predict(ccurrent_board)
-            moves = moves[pi[moves].argsort()][:self.args.kbest]
+            if pi is None:
+                pi, _ = self.nnet.predict(ccurrent_board)
+            moves = moves[pi[moves].argsort()][:self.args.get('kbest')]
         if currentPlayer == 1:
-            current_best_eval = self.get_best_eval(alpha, beta, ccurrent_board, depth - 1, moves, max)
+            self.evals[s] = self.get_best_eval(alpha, beta, ccurrent_board, depth - 1, moves, max)
         else:
-            current_best_eval = self.get_best_eval(alpha, beta, ccurrent_board, depth - 1, moves, min)
-        return current_best_eval
+            self.evals[s] = self.get_best_eval(alpha, beta, ccurrent_board, depth - 1, moves, min)
+        return self.evals[s]
 
     def get_best_eval(self, alpha, beta, ccurrent_board, depth, moves, max_or_min):
         current_best_eval = -max_or_min(-1, 1)
