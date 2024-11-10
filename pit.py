@@ -1,5 +1,6 @@
 import Arena
 from AlphaBeta import AlphaBeta
+from AlphaBetaMCTS import AlphaBetaMCTS
 from MCTS import MCTS
 from othello.OthelloGame import OthelloGame
 from othello.OthelloPlayers import *
@@ -41,20 +42,9 @@ n1p = lambda x: np.argmax(mcts1.getActionProb(x, temp=0))
 
 ap = AlphaBeta(g, n1, dotdict({'ab_depth': 9, 'kbest': 5, 'move_ordering': True})).play
 
-if human_vs_cpu:
-    player2 = hp
-else:
-    n2 = NNet(g)
-    if mini_othello:
-        n2.load_checkpoint('./pretrained_models/othello/pytorch/', '6x100x25_best.pth.tar')
-    else:
-        n2.load_checkpoint('./pretrained_models/othello/pytorch/', '8x8_100checkpoints_best.pth.tar')
-    args2 = dotdict({'numMCTSSims': 50, 'cpuct': 1.0})
-    mcts2 = MCTS(g, n2, args2)
-    n2p = lambda x: np.argmax(mcts2.getActionProb(x, temp=0))
-
-    player2 = n2p  # Player 2 is neural network if it's cpu vs cpu.
+ab_mcts = AlphaBetaMCTS(g, n1, dotdict({'numMCTSSims': 100, 'cpuct':1.0, 'prior_weight': 10, 'ab_params' : dotdict({'ab_depth': 3, 'move_ordering': True})}))
+n2p = lambda x: np.argmax(ab_mcts.getActionProb(x, temp=0))
 
 arena = Arena.Arena(ap, n1p, g, display=OthelloGame.display)
 
-print(arena.playGames(10, verbose=True))
+print(arena.playGames(2, verbose=True))
