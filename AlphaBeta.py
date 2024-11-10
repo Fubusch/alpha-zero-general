@@ -46,10 +46,13 @@ class AlphaBeta():
         game_ended = self.game.getGameEnded(ccurrent_board, 1)
         if game_ended != 0:
             return game_ended
-        elif depth == 0:
+        if depth == 0:
             _, v = self.nnet.predict(ccurrent_board)
             return v
         moves = self.get_valid_moves(ccurrent_board, currentPlayer)
+        if self.args.move_ordering:
+            pi, v = self.nnet.predict(ccurrent_board)
+            moves = moves[pi[moves].argsort()][:self.args.kbest]
         if currentPlayer == 1:
             current_best_eval = self.get_best_eval(alpha, beta, ccurrent_board, depth - 1, moves, max)
         else:
