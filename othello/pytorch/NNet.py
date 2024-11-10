@@ -13,6 +13,7 @@ import torch
 import torch.optim as optim
 
 from .OthelloNNet import OthelloNNet as onnet
+from .OthelloVarianceNNet import OthelloVarianceNNet as onvnet
 
 args = dotdict({
     'lr': 0.001,
@@ -25,8 +26,11 @@ args = dotdict({
 
 
 class NNetWrapper(NeuralNet):
-    def __init__(self, game):
-        self.nnet = onnet(game, args)
+    def __init__(self, game, variance_net=False):
+        if variance_net:
+            self.nnet = onvnet(game, args)
+        else:
+            self.nnet = onnet(game, args)
         self.board_x, self.board_y = game.getBoardSize()
         self.action_size = game.getActionSize()
 
