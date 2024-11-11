@@ -28,6 +28,7 @@ if __name__ == '__main__':
     mini_othello = False  # Play in 6x6 instead of the normal 8x8.
     human_vs_cpu = True
     variance_net = True
+    ab_mcts = True
     if mini_othello:
         g = OthelloGame(6)
         filepath = '6x100x25_best.pth.tar'
@@ -43,13 +44,23 @@ if __name__ == '__main__':
     # nnet players
     n1 = NNet(g)
     n1.load_checkpoint('./pretrained_models/othello/pytorch/', filepath)
-
-
-    for num_mcts_sims in [10, 15, 25, 50, 100]:
-        for kbest in [1, 2, 3, 4, 5, None]:
-            for ab_depth in [1, 3, 5, 7, 9]:
+    if ab_mcts:
+        for num_mcts_sims in [10, 15, 25, 50, 100]:
+            for prior_weight in [5, 10, 15, 25, 50]:
+                ab_mcts = get_alpha_beta_mcts_player(num_mcts_sims=num_mcts_sims, kbest=None, depth=5, prior_weight=prior_weight,
+                                                     move_ordering=True)
                 n1p = get_mcts_player(num_mcts_sims=num_mcts_sims)
-                ap = AlphaBeta(g, n1, dotdict({'ab_depth': ab_depth, 'kbest': kbest, 'move_ordering': True})).play
-                arena = Arena.Arena(ap, n1p, g, display=OthelloGame.display)
-                print(num_mcts_sims, kbest, ab_depth)
+                arena = Arena.Arena(ab_mcts, n1p, g, display=OthelloGame.display)
+                print(num_mcts_sims, prior_weight)
                 print(arena.playGames(20, verbose=False))
+    else:
+        for num_mcts_sims in [10, 15, 25, 50, 100]:
+            for kbest in [1, 2, 3, 4, 5, None]:
+                for ab_depth in [1, 3, 5, 7, 9]:
+                    n1p = get_mcts_player(num_mcts_sims=num_mcts_sims)
+                    ap = AlphaBeta(g, n1, dotdict({'ab_depth': ab_depth, 'kbest': kbest, 'move_ordering': True})).play
+                    arena = Arena.Arena(ap, n1p, g, display=OthelloGame.display)
+                    print(num_mcts_sims, kbest, ab_depth)
+                    print(arena.playGames(20, verbose=False))
+
+
