@@ -15,36 +15,41 @@ use this script to play any two agents against each other, or play manually with
 any agent.
 """
 
-mini_othello = False  # Play in 6x6 instead of the normal 8x8.
-human_vs_cpu = True
-variance_net = True
-if mini_othello:
-    g = OthelloGame(6)
-else:
-    g = OthelloGame(8)
+def get_mcts_player(num_mcts_sims=100):
+    args1 = dotdict({'numMCTSSims': num_mcts_sims, 'cpuct': 1.0})
+    mcts1 = MCTS(g, n1, args1)
+    return lambda x: np.argmax(mcts1.getActionProb(x, temp=0))
 
-# all players
-rp = RandomPlayer(g).play
-gp = GreedyOthelloPlayer(g).play
-hp = HumanOthelloPlayer(g).play
+def get_alpha_beta_mcts_player(num_mcts_sims=100, kbest=3, depth=3, prior_weight=10, move_ordering=False):
+    ab_mcts = AlphaBetaMCTS(g, n1, dotdict({'numMCTSSims': num_mcts_sims, 'cpuct':1.0, 'prior_weight': prior_weight, 'ab_params' : dotdict({'ab_depth': depth,'kbest': kbest, 'move_ordering': move_ordering})}))
+    return lambda x: np.argmax(ab_mcts.getActionProb(x, temp=0))
+
+if __name__ == '__main__':
+    mini_othello = False  # Play in 6x6 instead of the normal 8x8.
+    human_vs_cpu = True
+    variance_net = True
+    if mini_othello:
+        g = OthelloGame(6)
+        filepath = '6x100x25_best.pth.tar'
+    else:
+        g = OthelloGame(8)
+        filepath = '8x8_100checkpoints_best.pth.tar'
+
+    # all players
+    rp = RandomPlayer(g).play
+    gp = GreedyOthelloPlayer(g).play
+    hp = HumanOthelloPlayer(g).play
+
+    # nnet players
+    n1 = NNet(g)
+    n1.load_checkpoint('./pretrained_models/othello/pytorch/', filepath)
 
 
-
-# nnet players
-n1 = NNet(g)
-if mini_othello:
-    n1.load_checkpoint('./pretrained_models/othello/pytorch/','6x100x25_best.pth.tar')
-else:
-    n1.load_checkpoint('./pretrained_models/othello/pytorch/','8x8_100checkpoints_best.pth.tar')
-args1 = dotdict({'numMCTSSims': 15, 'cpuct':1.0})
-mcts1 = MCTS(g, n1, args1)
-n1p = lambda x: np.argmax(mcts1.getActionProb(x, temp=0))
-
-ap = AlphaBeta(g, n1, dotdict({'ab_depth': 9, 'kbest': 5, 'move_ordering': True})).play
-
-ab_mcts = AlphaBetaMCTS(g, n1, dotdict({'numMCTSSims': 100, 'cpuct':1.0, 'prior_weight': 10, 'ab_params' : dotdict({'ab_depth': 3, 'move_ordering': True})}))
-n2p = lambda x: np.argmax(ab_mcts.getActionProb(x, temp=0))
-
-arena = Arena.Arena(ap, n1p, g, display=OthelloGame.display)
-
-print(arena.playGames(2, verbose=True))
+    for num_mcts_sims in [10, 15, 25, 50, 100]:
+        for kbest in [1, 2, 3, 4, 5, None]:
+            for ab_depth in [1, 3, 5, 7, 9]:
+                n1p = get_mcts_player(num_mcts_sims=num_mcts_sims)
+                ap = AlphaBeta(g, n1, dotdict({'ab_depth': ab_depth, 'kbest': kbest, 'move_ordering': True})).play
+                arena = Arena.Arena(ap, n1p, g, display=OthelloGame.display)
+                print(num_mcts_sims, kbest, ab_depth)
+                print(arena.playGames(20, verbose=False))

@@ -1,6 +1,7 @@
 import logging
 
 import numpy as np
+from collections import defaultdict
 
 EPS = 1e-8
 
@@ -12,7 +13,7 @@ class AlphaBeta():
         self.game = game
         self.nnet = nnet
         self.args = args
-        self.evals = {}
+        self.evals = defaultdict(dict)
         self.game_ended = {}
 
     def play(self, canonicalBoard):
@@ -50,23 +51,23 @@ class AlphaBeta():
         s = self.game.stringRepresentation(ccurrent_board)
         if s not in self.game_ended:
             self.game_ended[s] = self.game.getGameEnded(ccurrent_board, 1)
-        if s in self.evals:
-            return self.evals[s]
         if self.game_ended[s] != 0:
             return self.game_ended[s]
+        if s in self.evals[depth]:
+            return self.evals[depth][s]
         if depth <= 0:
-            _, self.evals[s] = self.nnet.predict(ccurrent_board)
-            return self.evals[s]
+            _, self.evals[depth][s] = self.nnet.predict(ccurrent_board)
+            return self.evals[depth][s]
         moves = self.get_valid_moves(ccurrent_board, currentPlayer)
         if self.args.move_ordering:
             if pi is None:
                 pi, _ = self.nnet.predict(ccurrent_board)
             moves = moves[pi[moves].argsort()][:self.args.get('kbest')]
         if currentPlayer == 1:
-            self.evals[s] = self.get_best_eval(alpha, beta, ccurrent_board, depth - 1, moves, max)
+            self.evals[depth][s] = self.get_best_eval(alpha, beta, ccurrent_board, depth - 1, moves, max)
         else:
-            self.evals[s] = self.get_best_eval(alpha, beta, ccurrent_board, depth - 1, moves, min)
-        return self.evals[s]
+            self.evals[depth][s] = self.get_best_eval(alpha, beta, ccurrent_board, depth - 1, moves, min)
+        return self.evals[depth][s]
 
     def get_best_eval(self, alpha, beta, ccurrent_board, depth, moves, max_or_min):
         current_best_eval = -max_or_min(-1, 1)
