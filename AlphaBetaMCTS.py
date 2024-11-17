@@ -135,7 +135,8 @@ class AlphaBetaMCTS():
 
         else:
             self.Qsa[(s, a)] = v
-            self.Nsa[(s, a)] = self.args.prior_weight # weight for weighted prior
+            self.Nsa[(s, a)] = self.args.prior_weight
+            self.Ns[s] = self.args.prior_weight - 1
 
         self.Ns[s] += 1
         return -v
