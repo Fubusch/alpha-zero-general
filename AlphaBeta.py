@@ -1,20 +1,72 @@
 import logging
 
+import numpy
 import numpy as np
 from collections import defaultdict
+from numba import jit, njit
 
 EPS = 1e-8
 
 log = logging.getLogger(__name__)
 
+def get_stable_discs(stable_discs, canonicalBoard, board_dims):
+    for corner in [(0,0), (board_dims[0] -1, 0), (0, board_dims[1]-1), tuple(dim - 1 for dim in board_dims)]:
+        corner_value = canonicalBoard[corner]
+        if corner_value != 0:
+            stable_discs[corner_value][corner] = 1
+        else:
+            continue
+        stable_discs[corner_value] = get_stable_discs_for_corner(canonicalBoard, corner, corner_value, stable_discs[corner_value])
+    return stable_discs
+
+def get_stable_discs_for_corner(canonicalBoard, corner, corner_value, stable_discs):
+    max_i = [0, 0]
+    for dim in range(2):
+        if corner[dim] > 0:
+            step = -1
+        else:
+            step = 1
+        for i in range(1, canonicalBoard.shape[dim]):
+            field_index = [min(c, s - 1) for c, s in zip(corner, canonicalBoard.shape)]
+            field_index[dim] += (i * step)
+            if stable_discs[field_index[0], field_index[1]] == 1:
+                break
+            if canonicalBoard[field_index[0], field_index[1]] == corner_value:
+                stable_discs[field_index[0], field_index[1]] = 1
+            else:
+                max_i[dim] = step*i
+                break
+    if abs(max_i[0]) > 1 and abs(max_i[1]) > 1:
+        canonicalSlice = np.ones_like(canonicalBoard)
+        if (max_i[0] < 0):
+            canonicalSlice[:max_i[0]] = 0
+        else:
+            canonicalSlice[max_i[0]:] = 0
+        if(max_i[1] < 0):
+            canonicalSlice[:, :(max_i[1])] = 0
+        else:
+            canonicalSlice[:, max_i[1]:] = 0
+        stable_discs[canonicalSlice.astype(np.bool_)] = get_stable_discs_for_corner(canonicalBoard[canonicalSlice.astype(np.bool_)].reshape(abs(max_i[0]), abs(max_i[1])), corner, corner_value, stable_discs[canonicalSlice.astype(numpy.bool_)].reshape(abs(max_i[0]), abs(max_i[1]))).flatten()
+    return stable_discs
+
 
 class AlphaBeta():
     def __init__(self, game, nnet, args):
         self.game = game
-        self.evaluation_fuction = nnet.predict
+        self.evaluation_fuction = self.evaluation_function
+        self.policy_head = False
         self.args = args
         self.evals = defaultdict(dict)
         self.game_ended = {}
+
+    def evaluation_function(self, canonicalBoard: np.array):
+        board_dims = canonicalBoard.shape
+        stable_discs = {-1: np.zeros(board_dims), 1: np.zeros(board_dims)}
+        stable_discs = get_stable_discs(stable_discs, canonicalBoard, board_dims)
+        stable_disc_values = {key: 10 * val.sum() for key, val in stable_discs.items()}
+        num_moves_player = sum(self.game.getValidMoves(canonicalBoard, 1))
+        num_moves_opponent = sum(self.game.getValidMoves(canonicalBoard, -1))
+        return np.clip((stable_disc_values[1] - stable_disc_values[-1] + num_moves_player - num_moves_opponent) / np.multiply(*canonicalBoard.shape), -1, 1)
 
     def play(self, canonicalBoard):
         """
@@ -47,7 +99,10 @@ class AlphaBeta():
         if s in self.evals[depth]:
             return self.evals[depth][s]
         if depth <= 0:
-            _, self.evals[depth][s] = self.evaluation_fuction(ccurrent_board)
+            if self.policy_head:
+                _, self.evals[depth][s] = self.evaluation_fuction(ccurrent_board)
+            else:
+                self.evals[depth][s] = self.evaluation_fuction(ccurrent_board)
             return self.evals[depth][s]
         moves = self.get_valid_moves(ccurrent_board, currentPlayer)
         if self.args.move_ordering:
