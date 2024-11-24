@@ -53,8 +53,8 @@ def get_stable_discs_for_corner(canonicalBoard, corner, corner_value, stable_dis
 class AlphaBeta():
     def __init__(self, game, nnet, args):
         self.game = game
-        self.evaluation_fuction = self.evaluation_function
-        self.policy_head = False
+        self.evaluation_fuction = nnet.predict# self.evaluation_function
+        self.policy_head = True
         self.args = args
         self.evals = defaultdict(dict)
         self.game_ended = {}

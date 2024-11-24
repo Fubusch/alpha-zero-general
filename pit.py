@@ -28,7 +28,7 @@ if __name__ == '__main__':
     mini_othello = True  # Play in 6x6 instead of the normal 8x8.
     human_vs_cpu = True
     variance_net = True
-    ab_mcts = False
+    ab_mcts = True
     if mini_othello:
         g = OthelloGame(6)
         filepath = '6x100x25_best.pth.tar'
@@ -55,7 +55,7 @@ if __name__ == '__main__':
                 n1p = get_mcts_player(num_mcts_sims=num_mcts_sims)
                 arena = Arena.Arena(ab_mcts, n1p, g, display=OthelloGame.display)
                 print(num_mcts_sims, prior_weight)
-                print(arena.playGames(50, verbose=False))
+                print(arena.playGames(100, verbose=False))
     else:
         for num_mcts_sims in [10, 15, 25, 50, 100]:
             for kbest in [None]:

@@ -85,7 +85,7 @@ class AlphaBetaMCTS():
         if s not in self.Ps:
             # leaf node
             # ab search here instead of direct net call
-            self.Ps[s], v = self.nnet.predict(canonicalBoard)
+            self.Ps[s], _ = self.nnet.predict(canonicalBoard)
             valids = self.game.getValidMoves(canonicalBoard, 1)
             self.Ps[s] = self.Ps[s] * valids  # masking invalid moves
             sum_Ps_s = np.sum(self.Ps[s])
@@ -102,8 +102,8 @@ class AlphaBetaMCTS():
 
             self.Vs[s] = valids
             self.Ns[s] = 0
-            if abs(v) < 0.5:
-                v = self.alpha_beta.search(canonicalBoard, 1, self.alpha_beta.args.ab_depth, pi=self.Ps[s])
+            #if abs(v) < 0.5:
+            v = self.alpha_beta.search(canonicalBoard, 1, self.alpha_beta.args.ab_depth, pi=self.Ps[s])
             return -v
 
         valids = self.Vs[s]
