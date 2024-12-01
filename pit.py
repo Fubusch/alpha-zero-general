@@ -20,8 +20,8 @@ def get_mcts_player(num_mcts_sims=100):
     mcts1 = MCTS(g, n1, args1)
     return lambda x: np.argmax(mcts1.getActionProb(x, temp=0))
 
-def get_alpha_beta_mcts_player(num_mcts_sims=100, kbest=3, depth=3, prior_weight=10, move_ordering=False):
-    ab_mcts = AlphaBetaMCTS(g, n1, dotdict({'numMCTSSims': num_mcts_sims, 'cpuct':1.0, 'prior_weight': prior_weight, 'ab_params' : dotdict({'ab_depth': depth,'kbest': kbest, 'move_ordering': move_ordering})}))
+def get_alpha_beta_mcts_player(num_mcts_sims=100, kbest=3, depth=3, prior_weight=10, move_ordering=False, num_visits_before_ab=0, second_half=False):
+    ab_mcts = AlphaBetaMCTS(g, n1, dotdict({'numMCTSSims': num_mcts_sims, 'cpuct':1.0, 'prior_weight': prior_weight, 'second_half': second_half, 'num_visits_before_ab': num_visits_before_ab, 'ab_params' : dotdict({'ab_depth': depth,'kbest': kbest, 'move_ordering': move_ordering})}))
     return lambda x: np.argmax(ab_mcts.getActionProb(x, temp=0))
 
 if __name__ == '__main__':
@@ -46,16 +46,18 @@ if __name__ == '__main__':
     n1.load_checkpoint('./pretrained_models/othello/pytorch/', filepath)
 
     if ab_mcts:
-        for num_mcts_sims in [10, 15, 25, 50, 100]:
-            for prior_weight in [5, 10, 15, 25, 50]:
-                if prior_weight > num_mcts_sims:
-                    continue
-                ab_mcts = get_alpha_beta_mcts_player(num_mcts_sims=num_mcts_sims, kbest=None, depth=3, prior_weight=prior_weight,
-                                                     move_ordering=False)
-                n1p = get_mcts_player(num_mcts_sims=num_mcts_sims)
-                arena = Arena.Arena(ab_mcts, n1p, g, display=OthelloGame.display)
-                print(num_mcts_sims, prior_weight)
-                print(arena.playGames(100, verbose=False))
+        for second_half in [False, True]:
+            for num_visits_before_ab in [0, 1, 2]:
+                for num_mcts_sims in [10, 15, 25, 50, 100]:
+                    for prior_weight in [1, 5, 10, 15, 25, 50]:
+                        if prior_weight > num_mcts_sims:
+                            continue
+                        ab_mcts = get_alpha_beta_mcts_player(num_mcts_sims=num_mcts_sims, kbest=None, depth=2, prior_weight=prior_weight,
+                                                             move_ordering=False, second_half=False, num_visits_before_ab=0)
+                        n1p = get_mcts_player(num_mcts_sims=num_mcts_sims)
+                        arena = Arena.Arena(ab_mcts, n1p, g, display=OthelloGame.display)
+                        print(f"Experiment: sh:{second_half}, visits:{num_visits_before_ab}, sims:{num_mcts_sims}, pw:{prior_weight}")
+                        print(arena.playGames(100, verbose=False))
     else:
         for num_mcts_sims in [10, 15, 25, 50, 100]:
             for kbest in [None]:
