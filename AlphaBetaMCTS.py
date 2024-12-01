@@ -84,8 +84,7 @@ class AlphaBetaMCTS():
 
         if s not in self.Ps:
             # leaf node
-            # ab search here instead of direct net call
-            self.Ps[s], _ = self.nnet.predict(canonicalBoard)
+            self.Ps[s], v = self.nnet.predict(canonicalBoard)
             valids = self.game.getValidMoves(canonicalBoard, 1)
             self.Ps[s] = self.Ps[s] * valids  # masking invalid moves
             sum_Ps_s = np.sum(self.Ps[s])
@@ -102,8 +101,8 @@ class AlphaBetaMCTS():
 
             self.Vs[s] = valids
             self.Ns[s] = 0
-            #if abs(v) < 0.5:
-            v = self.alpha_beta.search(canonicalBoard, 1, self.alpha_beta.args.ab_depth, pi=self.Ps[s])
+            if self.args.num_visits_before_ab == 0:
+                return self.perform_ab_search_depending_on_second_half_condition(canonicalBoard, v)
             return -v
 
         valids = self.Vs[s]
@@ -127,16 +126,39 @@ class AlphaBetaMCTS():
         next_s, next_player = self.game.getNextState(canonicalBoard, 1, a)
         next_s = self.game.getCanonicalForm(next_s, next_player)
 
-        v = self.search(next_s)
+        v = None
+        if ((s,a) in self.Nsa) and (self.args.num_visits_before_ab == self.Nsa[(s, a)]):
+            v = self.perform_ab_search_depending_on_second_half_condition(next_s, None)
+        if v is None:
+            v = self.search(next_s)
 
         if (s, a) in self.Qsa:
             self.Qsa[(s, a)] = (self.Nsa[(s, a)] * self.Qsa[(s, a)] + v) / (self.Nsa[(s, a)] + 1)
-            self.Nsa[(s, a)] += 1
-
+            if self.args.num_visits_before_ab == self.Nsa[(s, a)]:
+                self.Nsa[(s, a)] += self.args.prior_weight
+            else:
+                self.Nsa[(s, a)] += 1
         else:
             self.Qsa[(s, a)] = v
-            self.Nsa[(s, a)] = self.args.prior_weight
-            self.Ns[s] = self.args.prior_weight - 1
-
+            if self.args.num_visits_before_ab == 0:
+                self.Nsa[(s, a)] = self.args.prior_weight
+            else:
+                self.Nsa[(s, a)] = 1
         self.Ns[s] += 1
         return -v
+
+    def perform_ab_search_depending_on_second_half_condition(self, canonicalBoard, v):
+        s = self.game.stringRepresentation(canonicalBoard)
+        if self.Es[s] != 0:
+            # terminal node
+            return -self.Es[s]
+        if self.args.second_half:
+            if self.is_more_than_half_of_board_covered(canonicalBoard):
+                v = self.alpha_beta.search(canonicalBoard, 1, self.alpha_beta.args.ab_depth, pi=self.Ps[s])
+        else:
+            v = self.alpha_beta.search(canonicalBoard, 1, self.alpha_beta.args.ab_depth, pi=self.Ps[s])
+        return -v if v is not None else None
+
+    def is_more_than_half_of_board_covered(self, canonicalBoard):
+        percentage_of_board_covered = (abs(canonicalBoard).sum() / np.multiply(*canonicalBoard.shape)) > 0.5
+        return percentage_of_board_covered
