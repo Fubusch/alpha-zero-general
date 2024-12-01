@@ -26,7 +26,7 @@ class AlphaBetaMCTS():
 
         self.Es = {}  # stores game.getGameEnded ended for board s
         self.Vs = {}  # stores game.getValidMoves for board s
-
+        self.Variances_times_n = {}
     def getActionProb(self, canonicalBoard, temp=1):
         """
         This function performs numMCTSSims simulations of MCTS starting from
@@ -133,17 +133,22 @@ class AlphaBetaMCTS():
             v = self.search(next_s)
 
         if (s, a) in self.Qsa:
+            prev_qsa = self.Qsa[(s, a)]
             self.Qsa[(s, a)] = (self.Nsa[(s, a)] * self.Qsa[(s, a)] + v) / (self.Nsa[(s, a)] + 1)
             if self.args.num_visits_before_ab == self.Nsa[(s, a)]:
                 self.Nsa[(s, a)] += self.args.prior_weight
             else:
                 self.Nsa[(s, a)] += 1
+            # http://datagenetics.com/blog/november22017/index.html
+            # https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford's_online_algorithm
+            self.Variances_times_n[(s, a)] = self.Variances_times_n[(s, a)] + (v - self.Qsa[(s, a)]) * (v - prev_qsa)
         else:
             self.Qsa[(s, a)] = v
             if self.args.num_visits_before_ab == 0:
                 self.Nsa[(s, a)] = self.args.prior_weight
             else:
                 self.Nsa[(s, a)] = 1
+            self.Variances_times_n[(s, a)] = 0
         self.Ns[s] += 1
         return -v
 
