@@ -34,6 +34,7 @@ class NNetWrapper(NeuralNet):
         self.board_x, self.board_y = game.getBoardSize()
         self.action_size = game.getActionSize()
 
+        self.variance_net = variance_net
         if args.cuda:
             self.nnet.cuda()
 
@@ -92,10 +93,13 @@ class NNetWrapper(NeuralNet):
         board = board.view(1, self.board_x, self.board_y)
         self.nnet.eval()
         with torch.no_grad():
-            pi, v = self.nnet(board)
+            if self.variance_net:
+                pi, v, var = self.nnet(board)
+                return torch.exp(pi).data.cpu().numpy()[0], v.data.cpu().numpy()[0], var.data.cpu().numpy()[0]
+            else:
+                pi, v = self.nnet(board)
+                return torch.exp(pi).data.cpu().numpy()[0], v.data.cpu().numpy()[0]
 
-        # print('PREDICTION TIME TAKEN : {0:03f}'.format(time.time()-start))
-        return torch.exp(pi).data.cpu().numpy()[0], v.data.cpu().numpy()[0]
 
     def loss_pi(self, targets, outputs):
         return -torch.sum(targets * outputs) / targets.size()[0]

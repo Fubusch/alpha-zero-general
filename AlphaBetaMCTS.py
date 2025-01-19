@@ -14,11 +14,11 @@ class AlphaBetaMCTS():
     This class handles the MCTS tree.
     """
 
-    def __init__(self, game, nnet, args):
+    def __init__(self, game, nnet, args, variance_net=False):
         self.game = game
         self.nnet = nnet
         self.args = args
-        self.alpha_beta = AlphaBeta(game, nnet, args.ab_params)
+        self.alpha_beta = AlphaBeta(game, nnet, args.ab_params, variance_net)
         self.Qsa = {}  # stores Q values for s,a (as defined in the paper)
         self.Nsa = {}  # stores #times edge s,a was visited
         self.Ns = {}  # stores #times board s was visited
@@ -27,6 +27,8 @@ class AlphaBetaMCTS():
         self.Es = {}  # stores game.getGameEnded ended for board s
         self.Vs = {}  # stores game.getValidMoves for board s
         self.Variances_times_n = {}
+        self.variance_net = variance_net
+
     def getActionProb(self, canonicalBoard, temp=1):
         """
         This function performs numMCTSSims simulations of MCTS starting from
@@ -84,7 +86,7 @@ class AlphaBetaMCTS():
 
         if s not in self.Ps:
             # leaf node
-            self.Ps[s], v = self.nnet.predict(canonicalBoard)
+            self.Ps[s], v, var = self.nnet.predict(canonicalBoard)
             valids = self.game.getValidMoves(canonicalBoard, 1)
             self.Ps[s] = self.Ps[s] * valids  # masking invalid moves
             sum_Ps_s = np.sum(self.Ps[s])
@@ -102,7 +104,8 @@ class AlphaBetaMCTS():
             self.Vs[s] = valids
             self.Ns[s] = 0
             if self.args.num_visits_before_ab == 0:
-                return self.perform_ab_search_depending_on_second_half_condition(canonicalBoard, v)
+                if var >= self.args.variance_threshold:
+                    return self.perform_ab_search_depending_on_second_half_condition(canonicalBoard, v)
             return -v
 
         valids = self.Vs[s]

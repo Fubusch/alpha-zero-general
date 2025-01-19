@@ -51,13 +51,14 @@ def get_stable_discs_for_corner(canonicalBoard, corner, corner_value, stable_dis
 
 
 class AlphaBeta():
-    def __init__(self, game, nnet, args):
+    def __init__(self, game, nnet, args, variance_net=False):
         self.game = game
         self.evaluation_fuction = nnet.predict# self.evaluation_function
         self.policy_head = True
         self.args = args
         self.evals = defaultdict(dict)
         self.game_ended = {}
+        self.variance_net = variance_net
 
     def evaluation_function(self, canonicalBoard: np.array):
         board_dims = canonicalBoard.shape
@@ -99,8 +100,8 @@ class AlphaBeta():
         if s in self.evals[depth]:
             return self.evals[depth][s]
         if depth <= 0:
-            if self.policy_head:
-                _, self.evals[depth][s] = self.evaluation_fuction(ccurrent_board)
+            if self.variance_net:
+                _, self.evals[depth][s], var = self.evaluation_fuction(ccurrent_board)
             else:
                 self.evals[depth][s] = self.evaluation_fuction(ccurrent_board)
             return self.evals[depth][s]
