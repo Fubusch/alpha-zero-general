@@ -54,17 +54,17 @@ if __name__ == '__main__':
 
     if ab_mcts:
         for second_half in [False, True]:
-            for num_visits_before_ab in [0]:
-                for variance_threshold in [0, 0.25, 0.5, 0.75]:
-                    for num_mcts_sims in [10, 15, 25, 50]:
-                        for prior_weight in [1, 5, 10, 15, 25, 50]:
+                for variance_threshold in [0, 0.25, 0.5, 0.75, 0.9, 1.5]:
+                    #for num_mcts_sims in [10, 15, 25, 50]:
+                    for num_mcts_sims in [25]:
+                        for prior_weight in [1, 5, 10, 15, 25]:#, 50]:
                             if prior_weight > num_mcts_sims:
                                 continue
                             ab_mcts = get_alpha_beta_mcts_player(num_mcts_sims=num_mcts_sims, kbest=None, depth=2, prior_weight=prior_weight,
-                                                                 move_ordering=False, second_half=False, num_visits_before_ab=num_visits_before_ab, variance_net=variance_net, variance_threshold=variance_threshold)
+                                                                 move_ordering=False, second_half=second_half, variance_net=variance_net, variance_threshold=variance_threshold)
                             n1p = get_mcts_player(num_mcts_sims=num_mcts_sims)
                             arena = Arena.Arena(ab_mcts, n1p, g, display=OthelloGame.display)
-                            print(f"Experiment: sh:{second_half}, visits:{num_visits_before_ab}, sims:{num_mcts_sims}, pw:{prior_weight}")
+                            print(f"Experiment: sh:{second_half}, sims:{num_mcts_sims}, pw:{prior_weight}, variance_threshold:{variance_threshold}")
                             print(arena.playGames(100, verbose=False))
     else:
         for num_mcts_sims in [10, 15, 25, 50, 100]:

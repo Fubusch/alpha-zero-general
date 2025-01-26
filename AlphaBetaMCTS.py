@@ -26,7 +26,6 @@ class AlphaBetaMCTS():
 
         self.Es = {}  # stores game.getGameEnded ended for board s
         self.Vs = {}  # stores game.getValidMoves for board s
-        self.Variances_times_n = {}
         self.variance_net = variance_net
 
     def getActionProb(self, canonicalBoard, temp=1):
@@ -38,6 +37,7 @@ class AlphaBetaMCTS():
             probs: a policy vector where the probability of the ith action is
                    proportional to Nsa[(s,a)]**(1./temp)
         """
+
         for i in range(self.args.numMCTSSims):
             self.search(canonicalBoard)
 
@@ -82,7 +82,7 @@ class AlphaBetaMCTS():
             self.Es[s] = self.game.getGameEnded(canonicalBoard, 1)
         if self.Es[s] != 0:
             # terminal node
-            return -self.Es[s]
+            return -self.Es[s], True
 
         if s not in self.Ps:
             # leaf node
@@ -103,10 +103,9 @@ class AlphaBetaMCTS():
 
             self.Vs[s] = valids
             self.Ns[s] = 0
-            if self.args.num_visits_before_ab == 0:
-                if var >= self.args.variance_threshold:
-                    return self.perform_ab_search_depending_on_second_half_condition(canonicalBoard, v)
-            return -v
+            if var >= self.args.variance_threshold:
+                return self.perform_ab_search_depending_on_second_half_condition(canonicalBoard, v)
+            return -v, False
 
         valids = self.Vs[s]
         cur_best = -float('inf')
@@ -126,46 +125,34 @@ class AlphaBetaMCTS():
                     best_act = a
 
         a = best_act
-        next_s, next_player = self.game.getNextState(canonicalBoard, 1, a)
-        next_s = self.game.getCanonicalForm(next_s, next_player)
+        next_s_not_canon, next_player = self.game.getNextState(canonicalBoard, 1, a)
+        next_s = self.game.getCanonicalForm(next_s_not_canon, next_player)
 
-        v = None
-        if ((s,a) in self.Nsa) and (self.args.num_visits_before_ab == self.Nsa[(s, a)]):
-            v = self.perform_ab_search_depending_on_second_half_condition(next_s, None)
-        if v is None:
-            v = self.search(next_s)
+        v, assign_prior_weight = self.search(next_s)
 
         if (s, a) in self.Qsa:
-            prev_qsa = self.Qsa[(s, a)]
             self.Qsa[(s, a)] = (self.Nsa[(s, a)] * self.Qsa[(s, a)] + v) / (self.Nsa[(s, a)] + 1)
-            if self.args.num_visits_before_ab == self.Nsa[(s, a)]:
-                self.Nsa[(s, a)] += self.args.prior_weight
-            else:
-                self.Nsa[(s, a)] += 1
-            # http://datagenetics.com/blog/november22017/index.html
-            # https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford's_online_algorithm
-            self.Variances_times_n[(s, a)] = self.Variances_times_n[(s, a)] + (v - self.Qsa[(s, a)]) * (v - prev_qsa)
+            self.Nsa[(s, a)] += 1
         else:
             self.Qsa[(s, a)] = v
-            if self.args.num_visits_before_ab == 0:
+            if assign_prior_weight:
                 self.Nsa[(s, a)] = self.args.prior_weight
             else:
                 self.Nsa[(s, a)] = 1
-            self.Variances_times_n[(s, a)] = 0
         self.Ns[s] += 1
-        return -v
+        return -v, False
 
     def perform_ab_search_depending_on_second_half_condition(self, canonicalBoard, v):
         s = self.game.stringRepresentation(canonicalBoard)
-        if self.Es[s] != 0:
-            # terminal node
-            return -self.Es[s]
+        assign_prior_weight = False
         if self.args.second_half:
             if self.is_more_than_half_of_board_covered(canonicalBoard):
+                assign_prior_weight = True
                 v = self.alpha_beta.search(canonicalBoard, 1, self.alpha_beta.args.ab_depth, pi=self.Ps[s])
         else:
+            assign_prior_weight = True
             v = self.alpha_beta.search(canonicalBoard, 1, self.alpha_beta.args.ab_depth, pi=self.Ps[s])
-        return -v if v is not None else None
+        return -v if v is not None else None, assign_prior_weight
 
     def is_more_than_half_of_board_covered(self, canonicalBoard):
         percentage_of_board_covered = (abs(canonicalBoard).sum() / np.multiply(*canonicalBoard.shape)) > 0.5
