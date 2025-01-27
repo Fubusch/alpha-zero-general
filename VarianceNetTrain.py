@@ -36,7 +36,7 @@ log = logging.getLogger(__name__)
 coloredlogs.install(level='INFO')  # Change this to DEBUG to see more info.
 
 def main():
-    train_full_net = True
+    train_full_net = False
     g = OthelloGame(6)
 
     filepath = '6x100x25_best.pth.tar'
