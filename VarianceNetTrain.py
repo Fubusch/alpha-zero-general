@@ -56,9 +56,20 @@ def main():
         train_examples = c.get_train_examples(0)
         prepared_examples = [(torch.tensor(x0.copy(), device='cuda', dtype=torch.float), torch.tensor(x1, device='cuda', dtype=torch.float), torch.tensor(x2, device='cuda', dtype=torch.float), torch.tensor(x3, device='cuda', dtype=torch.float)) for x0,x1,x2,x3 in train_examples]
         torch.save(prepared_examples, example_file)
-    train_size = int(len(prepared_examples) * 0.8)
-    data_loader_train = DataLoader(prepared_examples[:train_size], batch_size=512, shuffle=True, drop_last=True)
-    data_loader_test = DataLoader(prepared_examples[train_size:], batch_size=512, shuffle=True, drop_last=True)
+    only_variances = torch.tensor([p[3] for p in prepared_examples])
+    slice_size = 500
+    bins = 30
+    histogram = torch.histogram(only_variances, bins).hist.to(int)
+    count_sum = 0
+    balanced_examples = []
+    for i in range(bins - 1):
+        count_sum += histogram[i].item()
+        prepared_slice = prepared_examples[count_sum:count_sum+histogram[i+1].item()]
+        random_indices = torch.multinomial(torch.ones(histogram[i+1].item()), slice_size, False)
+        balanced_examples.extend([example for i, example in enumerate(prepared_slice) if i in random_indices])
+    train_size = int(len(balanced_examples) * 0.8)
+    data_loader_train = DataLoader(balanced_examples[:train_size], batch_size=512, shuffle=True, drop_last=True)
+    data_loader_test = DataLoader(balanced_examples[train_size:], batch_size=512, shuffle=True, drop_last=True)
     if train_full_net:
         optimizer = AdamW(abz.nnet.parameters(), lr=1e-2)
     else:
