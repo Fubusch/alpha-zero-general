@@ -24,7 +24,7 @@ class OthelloVarianceNNet(nn.Module):
         self.args = args
         self.onnet = OthelloNNet(game, args)
 
-        self.fc5 = nn.Linear(512, 1)
+        self.fc5 = nn.Sequential(nn.Linear(512, 50), nn.Sigmoid(), nn.BatchNorm1d(50), nn.Linear(50, 1))
 
     def forward(self, s):
         s = self.onnet.get_intermediate_representation(s)
@@ -58,7 +58,8 @@ if __name__ == '__main__':
         map_location = None if torch.cuda.is_available() else 'cpu'
         checkpoint = torch.load(filepath, map_location=map_location)
         ovn.onnet.load_state_dict(state_dict=checkpoint['state_dict'])
-        filepath = os.path.join(folder, 'variance_net_' + filename)
-        torch.save({
-            'state_dict': ovn.state_dict(),
-        }, filepath)
+        for name_suffix in ['', 'balanced_']:
+            filepath = os.path.join(folder, f"variance_net_{name_suffix}" + filename)
+            torch.save({
+                'state_dict': ovn.state_dict(),
+            }, filepath)

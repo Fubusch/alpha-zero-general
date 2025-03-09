@@ -50,7 +50,7 @@ if __name__ == '__main__':
     n1.load_checkpoint('./pretrained_models/othello/pytorch/', filepath)
 
     abz = NNet(g, variance_net=variance_net)
-    abz.load_checkpoint('./pretrained_models/othello/pytorch/', 'variance_net_' + filepath)
+    abz.load_checkpoint('./pretrained_models/othello/pytorch/', 'variance_net_balanced_' + filepath)
 
     if ab_mcts:
         for second_half in [False, True]:
