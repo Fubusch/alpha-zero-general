@@ -1,6 +1,7 @@
 import logging
 import math
-
+from utils import dotdict
+from AlphaBeta import AlphaBeta
 import numpy as np
 
 EPS = 1e-8
@@ -8,16 +9,16 @@ EPS = 1e-8
 log = logging.getLogger(__name__)
 
 
-class MCTS():
+class AlphaBetaMCTS():
     """
     This class handles the MCTS tree.
     """
 
     def __init__(self, game, nnet, args):
-        self.root_variance = 0
         self.game = game
         self.nnet = nnet
         self.args = args
+        self.alpha_beta = AlphaBeta(game, nnet, args.ab_params)
         self.Qsa = {}  # stores Q values for s,a (as defined in the paper)
         self.Nsa = {}  # stores #times edge s,a was visited
         self.Ns = {}  # stores #times board s was visited
@@ -25,7 +26,7 @@ class MCTS():
 
         self.Es = {}  # stores game.getGameEnded ended for board s
         self.Vs = {}  # stores game.getValidMoves for board s
-
+        self.Variances_times_n = {}
     def getActionProb(self, canonicalBoard, temp=1):
         """
         This function performs numMCTSSims simulations of MCTS starting from
@@ -35,14 +36,9 @@ class MCTS():
             probs: a policy vector where the probability of the ith action is
                    proportional to Nsa[(s,a)]**(1./temp)
         """
-        root_eval_before = 0
         for i in range(self.args.numMCTSSims):
-            v = self.search(canonicalBoard)
-            root_eval = (i * root_eval_before + v) / (i + 1)
-            # https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford's_online_algorithm
-            self.root_variance = self.root_variance + (v - root_eval) * (v - root_eval_before)
-            root_eval_before = root_eval
-        self.root_variance /= self.args.numMCTSSims
+            self.search(canonicalBoard)
+
         s = self.game.stringRepresentation(canonicalBoard)
         counts = [self.Nsa[(s, a)] if (s, a) in self.Nsa else 0 for a in range(self.game.getActionSize())]
 
@@ -105,6 +101,8 @@ class MCTS():
 
             self.Vs[s] = valids
             self.Ns[s] = 0
+            if self.args.num_visits_before_ab == 0:
+                return self.perform_ab_search_depending_on_second_half_condition(canonicalBoard, v)
             return -v
 
         valids = self.Vs[s]
@@ -128,14 +126,44 @@ class MCTS():
         next_s, next_player = self.game.getNextState(canonicalBoard, 1, a)
         next_s = self.game.getCanonicalForm(next_s, next_player)
 
-        v = self.search(next_s)
+        v = None
+        if ((s,a) in self.Nsa) and (self.args.num_visits_before_ab == self.Nsa[(s, a)]):
+            v = self.perform_ab_search_depending_on_second_half_condition(next_s, None)
+        if v is None:
+            v = self.search(next_s)
 
         if (s, a) in self.Qsa:
+            prev_qsa = self.Qsa[(s, a)]
             self.Qsa[(s, a)] = (self.Nsa[(s, a)] * self.Qsa[(s, a)] + v) / (self.Nsa[(s, a)] + 1)
-            self.Nsa[(s, a)] += 1
+            if self.args.num_visits_before_ab == self.Nsa[(s, a)]:
+                self.Nsa[(s, a)] += self.args.prior_weight
+            else:
+                self.Nsa[(s, a)] += 1
+            # http://datagenetics.com/blog/november22017/index.html
+            # https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford's_online_algorithm
+            self.Variances_times_n[(s, a)] = self.Variances_times_n[(s, a)] + (v - self.Qsa[(s, a)]) * (v - prev_qsa)
         else:
             self.Qsa[(s, a)] = v
-            self.Nsa[(s, a)] = 1
-
+            if self.args.num_visits_before_ab == 0:
+                self.Nsa[(s, a)] = self.args.prior_weight
+            else:
+                self.Nsa[(s, a)] = 1
+            self.Variances_times_n[(s, a)] = 0
         self.Ns[s] += 1
         return -v
+
+    def perform_ab_search_depending_on_second_half_condition(self, canonicalBoard, v):
+        s = self.game.stringRepresentation(canonicalBoard)
+        if self.Es[s] != 0:
+            # terminal node
+            return -self.Es[s]
+        if self.args.second_half:
+            if self.is_more_than_half_of_board_covered(canonicalBoard):
+                v = self.alpha_beta.search(canonicalBoard, 1, self.alpha_beta.args.ab_depth, pi=self.Ps[s])
+        else:
+            v = self.alpha_beta.search(canonicalBoard, 1, self.alpha_beta.args.ab_depth, pi=self.Ps[s])
+        return -v if v is not None else None
+
+    def is_more_than_half_of_board_covered(self, canonicalBoard):
+        percentage_of_board_covered = (abs(canonicalBoard).sum() / np.multiply(*canonicalBoard.shape)) > 0.5
+        return percentage_of_board_covered
