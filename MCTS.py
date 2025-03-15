@@ -14,6 +14,7 @@ class MCTS():
     """
 
     def __init__(self, game, nnet, args):
+        self.root_variance = 0
         self.game = game
         self.nnet = nnet
         self.args = args
@@ -34,9 +35,14 @@ class MCTS():
             probs: a policy vector where the probability of the ith action is
                    proportional to Nsa[(s,a)]**(1./temp)
         """
+        root_eval_before = 0
         for i in range(self.args.numMCTSSims):
-            self.search(canonicalBoard)
-
+            v = self.search(canonicalBoard)
+            root_eval = (i * root_eval_before + v) / (i + 1)
+            # https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford's_online_algorithm
+            self.root_variance = self.root_variance + (v - root_eval) * (v - root_eval_before)
+            root_eval_before = root_eval
+        self.root_variance /= self.args.numMCTSSims
         s = self.game.stringRepresentation(canonicalBoard)
         counts = [self.Nsa[(s, a)] if (s, a) in self.Nsa else 0 for a in range(self.game.getActionSize())]
 
@@ -127,7 +133,6 @@ class MCTS():
         if (s, a) in self.Qsa:
             self.Qsa[(s, a)] = (self.Nsa[(s, a)] * self.Qsa[(s, a)] + v) / (self.Nsa[(s, a)] + 1)
             self.Nsa[(s, a)] += 1
-
         else:
             self.Qsa[(s, a)] = v
             self.Nsa[(s, a)] = 1

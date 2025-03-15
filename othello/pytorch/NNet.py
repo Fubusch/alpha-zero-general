@@ -13,6 +13,7 @@ import torch
 import torch.optim as optim
 
 from .OthelloNNet import OthelloNNet as onnet
+from .OthelloVarianceNNet import OthelloVarianceNNet as onvnet
 
 args = dotdict({
     'lr': 0.001,
@@ -25,11 +26,15 @@ args = dotdict({
 
 
 class NNetWrapper(NeuralNet):
-    def __init__(self, game):
-        self.nnet = onnet(game, args)
+    def __init__(self, game, variance_net=False):
+        if variance_net:
+            self.nnet = onvnet(game, args)
+        else:
+            self.nnet = onnet(game, args)
         self.board_x, self.board_y = game.getBoardSize()
         self.action_size = game.getActionSize()
 
+        self.variance_net = variance_net
         if args.cuda:
             self.nnet.cuda()
 
@@ -88,10 +93,13 @@ class NNetWrapper(NeuralNet):
         board = board.view(1, self.board_x, self.board_y)
         self.nnet.eval()
         with torch.no_grad():
-            pi, v = self.nnet(board)
+            if self.variance_net:
+                pi, v, var = self.nnet(board)
+                return torch.exp(pi).data.cpu().numpy()[0], v.data.cpu().numpy()[0], var.data.cpu().numpy()[0]
+            else:
+                pi, v = self.nnet(board)
+                return torch.exp(pi).data.cpu().numpy()[0], v.data.cpu().numpy()[0]
 
-        # print('PREDICTION TIME TAKEN : {0:03f}'.format(time.time()-start))
-        return torch.exp(pi).data.cpu().numpy()[0], v.data.cpu().numpy()[0]
 
     def loss_pi(self, targets, outputs):
         return -torch.sum(targets * outputs) / targets.size()[0]
